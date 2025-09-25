@@ -1,10 +1,10 @@
-import express from 'express';
+import express from "express";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
-app.get('/', (req, res) => {
-  res.send('Bot is alive!');
+app.get("/", (req, res) => {
+  res.send("Bot is alive!");
 });
 
 app.listen(PORT, () => {
