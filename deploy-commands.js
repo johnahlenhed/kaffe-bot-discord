@@ -17,7 +17,25 @@ const commands = [
     .setDescription('Visa vilka som redan köpt kaffe'),
     new SlashCommandBuilder()
     .setName('join')
-    .setDescription('Gå med i kaffelistan')
+    .setDescription('Gå med i kaffelistan'),
+    new SlashCommandBuilder()
+    .setName('warning')
+    .setDescription('Varnar för att kaffet nästan är slut'),
+    new SlashCommandBuilder()
+    .setName('milkturn')
+    .setDescription('Vems tur det är att köpa mjölk.'),
+    new SlashCommandBuilder()
+    .setName('milkdone')
+    .setDescription('Markerar att mjölken är köpt'),
+    new SlashCommandBuilder()
+    .setName('milkhistory')
+    .setDescription('Visa vilka som redan köpt mjölk'),
+    new SlashCommandBuilder()
+    .setName('milkjoin')
+    .setDescription('Gå med i mjölkkön'),
+    new SlashCommandBuilder()
+    .setName('milkwarning')
+    .setDescription('Varnar för att mjölken nästan är slut')
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);

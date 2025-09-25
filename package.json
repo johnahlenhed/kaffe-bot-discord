@@ -2,16 +2,22 @@
   "name": "kafferep",
   "version": "1.0.0",
   "type": "module",
-  "description": "",
+  "description": "Discord bot för att hålla koll på vems tur det är att köpa kaffe",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "deploy": "node deploy-commands.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "discord",
+    "coffee",
+    "kaffebot",
+    "discord-bot"
+  ],
+  "author": "John Ahlenhed",
+  "license": "MIT",
   "dependencies": {
-    "discord.js": "^14.0.0",
-    "dotenv": "^16.0.0"
+    "discord.js": "14.16.3",
+    "dotenv": "16.4.5"
   }
 }
