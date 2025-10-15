@@ -17,7 +17,11 @@
   "author": "John Ahlenhed",
   "license": "MIT",
   "dependencies": {
-    "discord.js": "14.16.3",
-    "dotenv": "16.4.5"
+    "discord.js": "^14.23.2",
+    "dotenv": "16.4.5",
+    "pg": "^8.10.0"
+  },
+  "engines": {
+    "node": "18.x"
   }
 }
