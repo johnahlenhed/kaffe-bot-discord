@@ -1,120 +1,166 @@
-import { Client, GatewayIntentBits } from 'discord.js';
-import fs from 'fs';
-import 'dotenv/config';
-import './keep_alive.js';
+import { Client, GatewayIntentBits } from "discord.js";
+import "dotenv/config";
+import pkg from "pg";
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-const file = 'kaffe.json';
+const { Pool } = pkg;
 
-function loadData() {
-    return JSON.parse(fs.readFileSync(file));
-}
-function saveData(data) {
-    fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
-
-client.once('ready', () => {
-    console.log(`Botten är online som ${client.user.tag}`);
+// 🧩 Skapa anslutning till Heroku PostgreSQL
+// Heroku sätter automatisk DATABASE_URL i env vars.
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isCommand()) return;
+// 🧠 Initiera Discord-klienten
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-    const data = loadData();
+// 🚀 Startmeddelande
+client.once("ready", async () => {
+  console.log(`☕ Botten är online som ${client.user.tag}`);
+  await initDatabase();
+});
 
-    if (interaction.commandName === 'turn') {
-        await interaction.reply(`Det är **${data.queue[0]}**s tur att köpa kaffe!`);
+// 📦 Initiera tabeller om de inte finns
+async function initDatabase() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS coffee_queue (
+      id SERIAL PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS coffee_history (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS milk_queue (
+      id SERIAL PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS milk_history (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  console.log("✅ Databas initierad!");
+}
+
+// ⚙️ Hjälpfunktioner för databas
+async function getQueue(type) {
+  const result = await pool.query(`SELECT name FROM ${type}_queue ORDER BY id ASC`);
+  return result.rows.map((r) => r.name);
+}
+
+async function addToQueue(type, name) {
+  try {
+    await pool.query(`INSERT INTO ${type}_queue (name) VALUES ($1)`, [name]);
+  } catch {
+    // ignorerar om användaren redan finns
+  }
+}
+
+async function removeFromQueue(type, name) {
+  await pool.query(`DELETE FROM ${type}_queue WHERE LOWER(name) = LOWER($1)`, [name]);
+}
+
+async function addToHistory(type, name) {
+  await pool.query(`INSERT INTO ${type}_history (name) VALUES ($1)`, [name]);
+}
+
+// 🎯 Discord-kommandon
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isCommand()) return;
+
+  const { commandName } = interaction;
+  const who = interaction.member?.displayName || interaction.user.username;
+
+  try {
+    // ☕ KAFFE-KÖN
+    if (commandName === "join") {
+      await addToQueue("coffee", who);
+      await interaction.reply(`${who} har lagts till i kaffekön!`);
     }
 
-    if (interaction.commandName === 'done') {
-        const who = interaction.member?.displayName || interaction.user.username;
-
-        // Ta bort personen ur kön (oavsett position)
-        data.queue = data.queue.filter(name => name.toLowerCase() !== who.toLowerCase());
-
-        // Lägg till personen sist i kön
-        data.queue.push(who);
-
-        // Rensa dubbletter, behåll första förekomsten
-        data.queue = data.queue.filter((name, idx) =>
-            data.queue.findIndex(n => n.toLowerCase() === name.toLowerCase()) === idx
-        );
-
-        // Lägg till i historik
-        data.history.push(who);
-
-        saveData(data);
-        await interaction.reply(`${who} har köpt kaffe. Nästa i tur är **${data.queue[0]}**!`);
+    if (commandName === "turn") {
+      const queue = await getQueue("coffee");
+      if (queue.length === 0) return interaction.reply("Kön är tom!");
+      await interaction.reply(`Det är **${queue[0]}**s tur att köpa kaffe!`);
     }
 
-    if (interaction.commandName === 'history') {
-        const list = data.history.length ? data.history.join(', ') : 'Ingen har köpt kaffe än!';
-        await interaction.reply(`Kaffehistorik: ${list}`);
+    if (commandName === "done") {
+      await removeFromQueue("coffee", who);
+      await addToQueue("coffee", who);
+      await addToHistory("coffee", who);
+
+      const queue = await getQueue("coffee");
+      await interaction.reply(`${who} har köpt kaffe. Nästa är **${queue[0]}**!`);
     }
 
-    if (interaction.commandName === 'join') {
-        const who = interaction.user.displayName || interaction.user.displayName
-
-        if (data.queue.includes(who)) {
-            await interaction.reply({ content: `${who} är redan med i kön!`, ephemeral: true });
-        } else {
-            data.queue.push(who);
-            saveData(data);
-            await interaction.reply(`${who} har lagts till i kaffekön!`);
-        }
-        return;
+    if (commandName === "history") {
+      const result = await pool.query(`SELECT name FROM coffee_history ORDER BY id DESC LIMIT 20`);
+      const list = result.rows.map((r) => r.name).join(", ") || "Ingen har köpt kaffe än!";
+      await interaction.reply(`☕ Kaffehistorik: ${list}`);
     }
 
-    if (interaction.commandName === 'warning') {
-        await interaction.reply(`Kaffet är nästan slut! Nästa i tur är **${data.queue[0]}**!\nhttps://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYnNsanRyMHVqOXg3NGZqYXJtajNqNWk1cWpvZ3Rxa3R0a21kYXdzciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/BbJdwrOsM7nTa/giphy.gif`);
+    // 🥛 MJÖLKKÖN
+    if (commandName === "milkjoin") {
+      await addToQueue("milk", who);
+      await interaction.reply(`${who} har lagts till i mjölkkön!`);
     }
 
-    if (interaction.commandName === 'milkturn') {
-        await interaction.reply(`Det är **${data.milkQueue[0] || 'ingen'}**s tur att köpa mjölk!`);
+    if (commandName === "milkturn") {
+      const queue = await getQueue("milk");
+      if (queue.length === 0) return interaction.reply("Kön är tom!");
+      await interaction.reply(`Det är **${queue[0]}**s tur att köpa mjölk!`);
     }
 
-    if (interaction.commandName === 'milkdone') {
-        const who = interaction.member?.displayName || interaction.user.username;
+    if (commandName === "milkdone") {
+      await removeFromQueue("milk", who);
+      await addToQueue("milk", who);
+      await addToHistory("milk", who);
 
-        // Ta bort personen ur mjölkkön (oavsett position)
-        data.milkQueue = data.milkQueue.filter(name => name.toLowerCase() !== who.toLowerCase());
-
-        // Lägg till personen sist i mjölkkön
-        data.milkQueue.push(who);
-
-        // Rensa dubbletter
-        data.milkQueue = data.milkQueue.filter((name, idx) =>
-            data.milkQueue.findIndex(n => n.toLowerCase() === name.toLowerCase()) === idx
-        );
-
-        // Lägg till i mjölkhistorik
-        data.milkHistory.push(who);
-
-        saveData(data);
-        await interaction.reply(`${who} har köpt mjölk. Nästa i tur är **${data.milkQueue[0]}**!`);
+      const queue = await getQueue("milk");
+      await interaction.reply(`${who} har köpt mjölk. Nästa är **${queue[0]}**!`);
     }
 
-    if (interaction.commandName === 'milkhistory') {
-        const list = data.milkHistory.length ? data.milkHistory.join(', ') : 'Ingen har köpt mjölk än!';
-        await interaction.reply(`Mjölkhistorik: ${list}`);
+    if (commandName === "milkhistory") {
+      const result = await pool.query(`SELECT name FROM milk_history ORDER BY id DESC LIMIT 20`);
+      const list = result.rows.map((r) => r.name).join(", ") || "Ingen har köpt mjölk än!";
+      await interaction.reply(`🥛 Mjölkhistorik: ${list}`);
     }
 
-    if (interaction.commandName === 'milkjoin') {
-        const who = interaction.member?.displayName || interaction.user.username;
-
-        if (data.milkQueue.includes(who)) {
-            await interaction.reply({ content: `${who} är redan med i mjölkkön!`, ephemeral: true });
-        } else {
-            data.milkQueue.push(who);
-            saveData(data);
-            await interaction.reply(`${who} har lagts till i mjölkkön!`);
-        }
-        return;
+    if (commandName === "warning") {
+      const queue = await getQueue("coffee");
+      await interaction.reply(
+        `⚠️ Kaffet är nästan slut! Nästa är **${queue[0]}**!\nhttps://media3.giphy.com/media/BbJdwrOsM7nTa/giphy.gif`,
+      );
     }
 
-    if (interaction.commandName === 'milkwarning') {
-        await interaction.reply(`Mjölken är nästan slut! Nästa i tur är **${data.milkQueue[0]}**!`);
+    if (commandName === "milkwarning") {
+      const queue = await getQueue("milk");
+      await interaction.reply(
+        `🥛 Mjölken är nästan slut! Nästa är **${queue[0]}**!`,
+      );
     }
+
+  } catch (err) {
+    console.error("❌ Fel vid kommando:", err);
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: "Något gick fel! 🚨", ephemeral: true });
+    } else {
+      await interaction.reply({ content: "Något gick fel! 🚨", ephemeral: true });
+    }
+  }
 });
 
 client.login(process.env.DISCORD_TOKEN);
