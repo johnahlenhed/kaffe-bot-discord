@@ -1,11 +1,23 @@
 import { Client, GatewayIntentBits } from "discord.js";
 import pkg from "pg";
+import express from "express";
 import "dotenv/config";
 
 const { Pool } = pkg;
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
+});
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+  res.send("☕️ Kaffe-boten är vaken och brygger!");
+});
+
+app.listen(PORT, () => {
+  console.log(`🌐 Webserver igång på port ${PORT}`);
 });
 
 async function initDB() {
@@ -39,7 +51,6 @@ async function initDB() {
   }
 }
 
-// Kör initiering direkt
 initDB();
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -184,16 +195,3 @@ client.on("interactionCreate", async (interaction) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
-
-import express from "express";
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.get("/", (req, res) => {
-  res.send("☕️ Kaffe-boten är vaken och brygger!");
-});
-
-app.listen(PORT, () => {
-  console.log(`🌐 Webserver igång på port ${PORT}`);
-});
