@@ -184,3 +184,16 @@ client.on("interactionCreate", async (interaction) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
+import express from "express";
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+  res.send("☕️ Kaffe-boten är vaken och brygger!");
+});
+
+app.listen(PORT, () => {
+  console.log(`🌐 Webserver igång på port ${PORT}`);
+});
